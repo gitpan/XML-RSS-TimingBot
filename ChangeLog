@@ -1,0 +1,21 @@
+Revision history for Perl extension XML::RSS::TimingBot
+                                        Time-stamp: "2004-04-24 00:51:17 ADT"
+
+2004-04-24  Sean M. Burke  sburke@cpan.org
+	* Release 2.01 -- first CPAN release.
+
+	This version now has docs.
+
+	This version now supports etags.
+
+	This version has a larger tast-base now, including even a test
+	corpus of files.  That makes the dist much larger, but don't
+	worry, all those fat files don't get installed, they're just test
+	files.
+	
+	XML::RSS::TimingBotDBI is in its own dist now, to simplify the
+	prerequisite-declaration stuff for you.
+
+
+2004-04-07  Sean M. Burke  sburke@cpan.org
+	* Release 1.01 -- ALPHA
