@@ -1,11 +1,12 @@
 
-package XML::RSS::TimingBot;
+require 5;
+package XML::RSS::TimingBot;         # Time-stamp: "2004-05-19 12:50:53 ADT"
 use      LWP::UserAgent::Determined ();
 @ISA = ('LWP::UserAgent::Determined');
 
 use strict;
 use vars qw($VERSION);
-$VERSION = '2.02';
+$VERSION = '2.03';
 
 use LWP::Debug ();
 use XML::RSS::Timing ();
@@ -16,7 +17,7 @@ die "Where's _elem?!!?" unless __PACKAGE__->can('_elem');
 #--------------------------------------------------------------------------
 # Some incidental accessors:
 sub minAge { shift->_elem( 'minAge' , @_) }
-sub maxAge { shift->_elem( 'minAge' , @_) }
+sub maxAge { shift->_elem( 'maxAge' , @_) }
 sub min_age { shift->minAge(@_) } #alias
 sub max_age { shift->maxAge(@_) } #alias
 

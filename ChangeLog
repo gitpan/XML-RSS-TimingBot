@@ -1,6 +1,24 @@
 Revision history for Perl extension XML::RSS::TimingBot
-                                        Time-stamp: "2004-04-30 19:36:21 ADT"
+                                        Time-stamp: "2004-05-19 12:57:23 ADT"
 
+2004-05-19  Sean M. Burke  sburke@cpan.org
+        * Release 2.03 -- important bugfix version
+	* In the previous version, the maxAge method actually read and
+	wrote tho minAge slot in the object!  This version fixes that.
+
+	
+	BTW: a 3.x version will be out soon.  It'll be smarter with the
+	situations (which the current version doesn't handle well) of a
+	feed that keeps returning an HTTP 304 even when we would have
+	expected it to have updated.  (That often happens when a feed
+	generator decides (rightly) that when there's no new content, it
+	shouldn't bother touching the RSS file.)  The current version
+	basically figures that until it gets an HTTP 200 (instead of the
+	not-modified), a feed can be polled and repolled as often as we
+	want.  The new version will instead poll the feed only once or
+	twice per update period, even if the polls ever only return 304.
+
+	
 2004-04-30  Sean M. Burke  sburke@cpan.org
         * Release 2.02 -- first CPAN release.
 
