@@ -5,7 +5,7 @@ use      LWP::UserAgent::Determined ();
 
 use strict;
 use vars qw($VERSION);
-$VERSION = '2.01';
+$VERSION = '2.02';
 
 use LWP::Debug ();
 use XML::RSS::Timing ();
@@ -19,6 +19,8 @@ sub minAge { shift->_elem( 'minAge' , @_) }
 sub maxAge { shift->_elem( 'minAge' , @_) }
 sub min_age { shift->minAge(@_) } #alias
 sub max_age { shift->maxAge(@_) } #alias
+
+sub rss_semaphore_file { shift->_elem( 'rss_semaphore_file' , @_) }
 
 #==========================================================================
 
@@ -84,6 +86,8 @@ sub _rssagent_init {
   my $self = shift;
   $self->agent("XmlRssTimingBot/$VERSION (" . $self->agent . ")" );
   
+  $self->rss_semaphore_file(1) unless $^O =~ m/(?:Mac|MSWin)/;
+
   # Whatever needs doing here
   return;
 }
@@ -468,6 +472,9 @@ sub _stupid_datum_from_db {
   DEBUG > 1 and print " DB: Getting datum $varname for $url ...\n";
 
   return undef unless -e $dbfile;
+
+  my $unlocker = $self->_stupid_lock();
+
   open( STUPID_DB, $dbfile)
    or die "Can't read-open $dbfile for $url : $!\nAborting";
   my @f;
@@ -485,6 +492,7 @@ sub _stupid_datum_from_db {
     }
   }
   close(STUPID_DB);
+  $unlocker and $unlocker->();
   DEBUG > 8 and print "   Done reading DB file $dbfile\n";
   
   return $from_db->{$url}{$varname}
@@ -510,11 +518,16 @@ sub _stupid_commit {  # write all our dirty cache to DB files
   }
   DEBUG > 7 and print "  Committing to ", scalar(keys %path2mods),
    " database files...\n";
+
+  my $unlocker = $self->_stupid_lock();
+
   foreach my $dbfile (keys %path2mods) {
     $self->_stupid___mod_db( $dbfile, $path2mods{$dbfile} );
     $path2mods{$dbfile} = undef;  # potentially free up some memory
   }
   DEBUG > 7 and print "  Done committing all database files\n";
+
+  $unlocker and $unlocker->();
   %$for_db = ();
   return;
 }
@@ -522,6 +535,21 @@ sub _stupid_commit {  # write all our dirty cache to DB files
 #
 #  And now some very internal stuff:
 #
+
+sub _stupid_lock {
+  my $self = shift;
+  my $file = $self->rss_semaphore_file;
+  return unless $file;
+
+  $file = $self->_stupid___url2dbfile("http://lock.nowhere.int/lock")
+   if $file eq '1';
+
+  DEBUG > 2 and
+   print "About to request (maybe wait for!) an exclusive lock on $file\n";
+
+  return $self->_getsem($file);
+}
+
 
 sub _stupid___my_db_path  {
   my $self = shift;
@@ -561,7 +589,7 @@ sub _stupid___url2dbfile {
 #  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .
 
 sub _stupid___mod_db {
-    my($self, $dbfile, $to_write) = @_;
+  my($self, $dbfile, $to_write) = @_;
 
   if( -e $dbfile and -s _ ) {
     DEBUG > 9 and print "Reading db $dbfile ...\n";
@@ -592,6 +620,57 @@ sub _stupid___mod_db {
   close(STUPID_DB);
   DEBUG > 8 and print "   Done saving DB file $dbfile\n";
   return;
+}
+
+############################################################################
+
+sub _getsem {
+  my($self, $file, $be_nonblocking) = @_;
+  # Lock this semaphore file.  Returns the unlocker sub!!
+  #
+  # To have the lock be non-blocking, specify a true second parameter.
+  # In that case, returns false if can't get the lock.  Unlocker
+  # sub otherwise.
+  
+  unless(defined $file and length $file) {
+    require Carp;  
+    Carp::confess("Filename argument to _getsem must be contentful!")
+  }
+   
+  open(my $fh, ">$file") or Carp::croak("Can't write-open $file\: $!");
+  #chmod 0666, $file; # yes, make it world-writeable.  or at least try.
+  
+  if($be_nonblocking) { # non-blocking!
+    eval { flock($fh, 2 | 4) } # Exclusive + NONblocking
+      or return; # couldn't get a lock.
+  } else { # normal case: Exclusive, Blocking
+    eval { flock($fh, 2) } # Exclusive
+     or do { require Carp; Carp::confess("Can't exclusive-block lock $file: $!") };
+     # should never just fail -- should queue up forever
+  }
+  
+  unless( print $fh "I am a lowly " , __PACKAGE__ , " semaphore file\cm\cj" ) {
+    require Carp;
+    Carp::confess("Can't write to $file\: $!");
+  }
+  
+  return(
+    sub {
+      if($fh) { # So we can call multiple times
+        DEBUG > 1 and print "Releasing lock on $file\n";
+        close($fh); # Presumably will never fail!
+          # Will release the lock.
+        undef $fh;
+        return 1;
+      } else {
+        return '';
+      }
+    }
+  );
+  # Now, I /could/ just have this work by returning the globref --
+  # then when all the references to the glob go to 0, the FH
+  # closes, and the lock is released.  However, this /relies/ on
+  # the timing of garbage collection.
 }
 
 

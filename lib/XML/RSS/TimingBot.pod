@@ -32,6 +32,7 @@ If you use LWP::UserAgent for fetching RSS/RDF feeds, use
 XML::RSS::TimingBot instead! XML::RSS::TimingBot has the same interface,
 but knows when to more efficiently request the data.
 
+
 =head2 DETAILED DESCRIPTION
 
 XML::RSS::TimingBot is for requesting RSS feeds only as often as needed.
@@ -56,6 +57,31 @@ the feed will rebuild only once every three hours (180 minutes).
 When this class sees that in the received RSS data, it remembers
 this so that if you go to get the feed more often than that, it
 will stop you and give a "304" (Not Modified) error response.
+
+
+=head1 USING UNDER WITH LWP::Simple
+
+If you have an RSS-reading program is like this:
+
+  use LWP::Simple;
+  ...and later...
+  $data = get($rss_url);
+
+... then you can make it work with this this XML::RSS::TimingBot (or a
+subclass) by just changing the "use LWP::Simple" line to this:
+
+  use LWP::Simple qw(:DEFAULT $ua);
+  use   XML::RSS::TimingBot;
+  $ua = XML::RSS::TimingBot->new;
+
+And then change your C<$data = get($rss_url);> line to either
+have a commit call like this:
+
+  $data = get($rss_url);   $ua->commit;
+
+Or just add a C<< $ua->commit; >> line later in the program where it
+will be called after the feed data is processed, presumably toward
+the end of this RSS-aggregator program's run.
 
 
 =head1 METHODS
@@ -141,17 +167,8 @@ use L<XML::RSS::TimingbotDBI>!  It's just that XML::RSS::Timingbot is
 probably more convenient for you, since it doesn't need to have L<DBI>
 installed, etc.)
 
-There are two notable drawbacks to the basic flat-file storage system:
-It doesn't do any file-locking, and it doesn't ever tidy up its
-database.
-
-The lack of file-locking means that if two different processes
-have been polling feeds (possibly different feeds, possibly the same
-feeds) and then call C<< $browser->commit >> at the same time, the files
-may get corrupted as both processes try writing to them at the same
-time. If this is a potential problem, either use XML::RSS::TimingBotDBI,
-or use lock files (semaphore files) to make sure that no two processes
-are ever calling C<< $browser->commit >> at the same time.
+There is a notable drawbacks to the basic flat-file storage system:
+it doesn't ever tidy up its database.
 
 The fact that XML::RSS::TimingBot never tidies up its database is less
 serious. Basically, XML::RSS::TimingBot offers no way to say "I don't
@@ -190,6 +207,40 @@ but I document them here in case they might be useful to you.
 (Subclassers: you really shouldn't ever need to override these.)
 
 =over
+
+=item $sem_file = $browser->rss_lock_file;
+
+=item $browser->rss_lock_file($some_file);
+
+This reads (or, in the second case, sets) the value of the
+C<rss_lock_file> attribute.  That's the name of a file that
+will be used to avoid race conditions as the "Basic Storage
+System" (see above) reads and writes to its data files.
+(This isn't used by XML::RSS::TimingBotDBI.)
+
+Normally you don't need to worry about this attribute, but
+here are its possible values:
+
+=over
+
+=item
+
+A false value ("0", undef, or empty string) means that you won't use
+any file locking.  B<Under MSWin and old MacOS, this is the default!>.
+That's because those OSs don't support proper Unix-style file locking.
+
+=item
+
+The value "1" means to use a sanely named file in "rssdata" directory.
+This is the default, except under MSWin and old MacOS.
+
+=item
+
+Any other value (like, say, C<"$ENV{'HOME'}/.rssualock">) means to
+use that filespec as the lock file.
+
+=back
+
 
 =item $epoch_time = $browser->feed_get_next_update($url);
 
